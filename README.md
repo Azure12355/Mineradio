@@ -4,6 +4,8 @@
 
 Mineradio 是一款 Windows 桌面沉浸式音乐播放器，把搜索播放、歌词舞台、粒子视觉、3D 歌单架和完整桌面模式组合成一个更接近现场感的私人音乐空间。
 
+macOS（Apple Silicon）现提供源码运行和本地构建方式，已验证应用启动；详见 [macOS 本地运行](#macos-本地运行apple-silicon)。
+
 ## 立即下载 Windows 安装包
 
 > 本次下载入口已更换，请使用下面的新网盘链接，并更新旧收藏。通过公告中的网盘入口下载，也是在支持 Mineradio 的持续更新。
@@ -79,6 +81,37 @@ npm run build:win
 ```
 
 桌面版入口由 Electron 主进程加载本地服务。`npm run build:win` 会生成 Windows NSIS 安装包，产物位于 `dist/`。
+
+## macOS 本地运行（Apple Silicon）
+
+需要 Apple Silicon Mac、原生 arm64 Node.js 22.12 或更新版本，以及 npm。在项目目录执行：
+
+```bash
+npm ci
+npm start
+```
+
+`npm ci` 会通过安装脚本下载 Electron 运行时，需要能够访问 Electron 下载源。
+
+生成本地应用或 DMG：
+
+```bash
+npm run build:mac:dir
+npm run build:mac
+```
+
+应用位于 `dist/mac-arm64/Mineradio.app`，DMG 位于 `dist/`。这是本地未签名构建，未做 Apple 公证。
+构建命令复用本地已安装的 Electron，不重复下载运行时。可直接打开生成的 `.app`，或将它拖入「应用程序」目录。
+
+macOS 适配使用默认图形后端，并加入系统编辑菜单、Command+Q 和菜单栏托盘。关闭到托盘需在应用中选择对应的关闭行为。
+
+兼容范围与验证情况：
+
+- 已在 Apple Silicon Mac 上完成 `.app` 构建和实际启动，启动状态为 `ready`，本地页面返回 HTTP 200。
+- 图形启动参数、完整桌面运行时、本地音乐持久化和启动流程相关的 43 项检查通过。
+- 播放、平台登录、菜单/托盘交互及视觉效果尚未逐项验收；DMG 生成和 Intel Mac 未验证。
+- 完整桌面嵌入、Wallpaper Engine 场景及 Windows 系统内存清理不支持 macOS。
+- 在线音乐平台功能取决于对应服务和账号权限。当前没有正式签名、公证的 macOS 发行版，请勿使用 Windows `.exe` 安装包。
 
 ## 更新机制
 

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, screen, session, globalShortcut, dialog, Tray, Menu, protocol, desktopCapturer, powerMonitor } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, screen, session, globalShortcut, dialog, Tray, Menu, protocol, desktopCapturer, powerMonitor, nativeImage } = require('electron');
 const net = require('net');
 const http = require('http');
 const path = require('path');
@@ -102,7 +102,7 @@ const APP_PACKAGE_INFO = (() => {
 const APP_METADATA = APP_PACKAGE_INFO.mineradio || {};
 const APP_NAME = process.env.MINERADIO_RUNTIME_NAME || APP_METADATA.runtimeName || APP_PACKAGE_INFO.productName || 'Mineradio';
 const APP_USER_MODEL_ID = process.env.MINERADIO_APP_USER_MODEL_ID || APP_METADATA.appUserModelId || (APP_PACKAGE_INFO.build && APP_PACKAGE_INFO.build.appId) || 'com.mineradio.desktop';
-const APP_ICON_ICO = path.join(__dirname, '..', 'build', 'icon.ico');
+const APP_ICON_ICO = path.join(__dirname, '..', 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
 const CURRENT_FX_AUTOSAVE_FILE = 'current-fx-autosave.json';
 const CURRENT_FX_AUTOSAVE_MAX_BYTES = 12 * 1024 * 1024;
 const STARTUP_ERROR_LOG_FILE = 'startup-error.log';
@@ -477,11 +477,13 @@ try {
 
 const CHROMIUM_SAFE_PERFORMANCE_SWITCHES = [
   ['autoplay-policy', 'no-user-gesture-required'],
-  ['enable-gpu-rasterization'],
-  ['enable-oop-rasterization'],
-  ['enable-zero-copy'],
-  ['enable-accelerated-2d-canvas'],
-  ['use-angle', 'd3d11'],
+  ...(process.platform === 'darwin' ? [] : [
+    ['enable-gpu-rasterization'],
+    ['enable-oop-rasterization'],
+    ['enable-zero-copy'],
+    ['enable-accelerated-2d-canvas'],
+  ]),
+  ...(process.platform === 'win32' ? [['use-angle', 'd3d11']] : []),
 ];
 const CHROMIUM_OPT_IN_PERFORMANCE_SWITCHES = [
   ['ignore-gpu-blocklist', null, 'MINERADIO_IGNORE_GPU_BLOCKLIST'],
@@ -2107,10 +2109,12 @@ function focusMainWindow() {
 }
 
 function createOrUpdateTray() {
-  if (process.platform !== 'win32' && process.platform !== 'linux') return;
+  if (!['win32', 'linux', 'darwin'].includes(process.platform)) return;
   if (!tray) {
     try {
-      tray = new Tray(APP_ICON_ICO);
+      tray = new Tray(process.platform === 'darwin'
+        ? nativeImage.createFromPath(APP_ICON_ICO).resize({ width: 18, height: 18 })
+        : APP_ICON_ICO);
       tray.setToolTip(APP_NAME);
       tray.on('click', () => focusMainWindow());
       tray.on('double-click', () => focusMainWindow());
@@ -5931,6 +5935,14 @@ if (!gotSingleInstanceLock) {
   });
 
   app.whenReady().then(async () => {
+    if (process.platform === 'darwin') {
+      Menu.setApplicationMenu(Menu.buildFromTemplate([
+        { role: 'appMenu' },
+        { role: 'editMenu' },
+        { role: 'windowMenu' },
+      ]));
+      if (app.dock) app.dock.setIcon(APP_ICON_ICO);
+    }
     try {
       await localMusicLibrary.installProtocol(protocol);
     } catch (error) {
