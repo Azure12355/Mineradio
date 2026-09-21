@@ -6,6 +6,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { execFile, spawn } = require('child_process');
 const systemMemory = require('./system-memory');
+const { createMacFullscreenController } = require('./macos-fullscreen');
 const {
   WallpaperEngineLibrary,
   registerWallpaperEngineScheme,
@@ -1904,7 +1905,7 @@ function getWindowState(win) {
 }
 
 function setMainWindowFullscreenResizeGuard(win, fullscreen) {
-  if (!win || win.isDestroyed()) return;
+  if (!win || win.isDestroyed() || process.platform === 'darwin') return;
   const shouldResize = !fullscreen;
   try {
     if (typeof win.isResizable === 'function' && win.isResizable() === shouldResize) return;
@@ -3385,6 +3386,7 @@ function getAdaptiveWindowMinimumSize(display) {
 
 function updateMainWindowMinimumSize(win) {
   if (!win || win.isDestroyed()) return;
+  if (win.__macFullscreen && (win.isFullScreen() || win.__macFullscreen.isTransitioning())) return;
   const minimum = getAdaptiveWindowMinimumSize(getWindowDisplay(win));
   win.setMinimumSize(minimum.width, minimum.height);
 }
@@ -3407,6 +3409,7 @@ function clampBoundsToDisplayArea(bounds, display) {
 
 function ensureMainWindowInsideDisplay(win) {
   if (!win || win.isDestroyed() || win.isFullScreen()) return;
+  if (win.__macFullscreen && win.__macFullscreen.isTransitioning()) return;
   const display = getWindowDisplay(win);
   updateMainWindowMinimumSize(win);
   const current = win.getBounds();
@@ -3488,6 +3491,10 @@ function applyWindowedBounds(win, displayOverride = null) {
 
 function exitFullscreenToWindow(win) {
   if (!win || win.isDestroyed()) return;
+  if (win.__macFullscreen) {
+    win.__macFullscreen.exit();
+    return;
+  }
   windowFullscreenActive = false;
 
   if (!win.isFullScreen()) {
@@ -3504,6 +3511,10 @@ function exitFullscreenToWindow(win) {
 
 function toggleFullscreen(win) {
   if (!win || win.isDestroyed()) return;
+  if (win.__macFullscreen) {
+    win.__macFullscreen.toggle();
+    return;
+  }
   if (win.isFullScreen() || windowFullscreenActive) {
     exitFullscreenToWindow(win);
     return;
@@ -5312,6 +5323,7 @@ function clearMainWindowFullscreenVisibilityGuard() {
 }
 
 function shouldRestoreUnexpectedMainWindowVisibility(win) {
+  if (process.platform === 'darwin') return false;
   if (!win || win.isDestroyed() || appQuitting || !startupCompleted) return false;
   if (win.__mineradioIntentionalHide === true || win.__mineradioExpectedVisible === false) return false;
   if (fullDesktopModeHostVisibilityTransitionDepth > 0 || fullDesktopModeRuntime.getStatus('main-window-visibility-guard').enabled === true) return false;
@@ -5320,6 +5332,7 @@ function shouldRestoreUnexpectedMainWindowVisibility(win) {
 }
 
 function shouldRestoreUnexpectedMainWindowMinimize(win) {
+  if (process.platform === 'darwin') return false;
   if (!win || win.isDestroyed() || appQuitting || !startupCompleted) return false;
   if (win.__mineradioIntentionalHide === true || win.__mineradioExpectedVisible === false) return false;
   if (win.__mineradioIntentionalMinimize === true) return false;
@@ -5328,6 +5341,7 @@ function shouldRestoreUnexpectedMainWindowMinimize(win) {
 }
 
 function shouldRestoreUnexpectedFullscreenVisibility(win) {
+  if (process.platform === 'darwin') return false;
   if (!win || win.isDestroyed() || appQuitting || win.__mineradioIntentionalHide === true) return false;
   if (fullDesktopModeHostVisibilityTransitionDepth > 0 || fullDesktopModeRuntime.getStatus('fullscreen-visibility-guard').enabled === true) return false;
   if (!win.isFullScreen() || win.isMinimized() || win.isVisible()) return false;
@@ -5606,7 +5620,7 @@ async function createWindowOnce() {
     minHeight: initialMinimum.height,
     show: false,
     frame: false,
-    fullscreen: false,
+    ...(process.platform === 'darwin' ? { fullscreenable: true } : { fullscreen: false }),
     resizable: true,
     transparent: true,
     opacity: process.env.MINERADIO_STARTUP_QA_HIDDEN === '1' ? 0 : 1,
@@ -5624,6 +5638,11 @@ async function createWindowOnce() {
     },
   });
   mainWindow = win;
+  if (process.platform === 'darwin') {
+    win.__macFullscreen = createMacFullscreenController(win, {
+      restoreBounds: (bounds) => win.setBounds(clampBoundsToDisplayArea(bounds, screen.getDisplayMatching(bounds)), false),
+    });
+  }
   hookExplorerRestartForFullDesktop(win);
   hookMainWindowMinimizeIntent(win);
   writeStartupState('window-created', { windowCreatedAt: Date.now() });
@@ -5694,7 +5713,7 @@ async function createWindowOnce() {
       requestFullDesktopEscapeExit('escape-key');
       return;
     }
-    if (input.type === 'keyDown' && (input.key === 'Escape' || input.code === 'Escape') && win.isFullScreen()) {
+    if (input.type === 'keyDown' && (input.key === 'Escape' || input.code === 'Escape') && (win.isFullScreen() || win.__macFullscreen && win.__macFullscreen.isTransitioning())) {
       event.preventDefault();
       exitFullscreenToWindow(win);
     }
@@ -5760,6 +5779,18 @@ async function createWindowOnce() {
     scheduleWallpaperEngineHostBoundsRestart(win, 'resize');
   });
   win.on('close', (event) => {
+    if (!appQuitting && win.__macFullscreen && (win.isFullScreen() || win.__macFullscreen.isTransitioning())) {
+      event.preventDefault();
+      if (!win.__macClosePending) {
+        win.__macClosePending = true;
+        win.once('leave-full-screen', () => {
+          win.__macClosePending = false;
+          setImmediate(() => { if (!win.isDestroyed()) win.close(); });
+        });
+        win.__macFullscreen.exit();
+      }
+      return;
+    }
     const desktopMode = fullDesktopModeRuntime.getStatus('main-window-close');
     if (desktopMode.enabled === true) {
       event.preventDefault();
@@ -5855,9 +5886,10 @@ async function createWindowOnce() {
     windowFullscreenActive = false;
     setMainWindowFullscreenResizeGuard(win, false);
     clearMainWindowFullscreenVisibilityGuard();
+    sendWindowState(win);
     setTimeout(() => {
       const targetDisplay = getFullscreenTargetDisplay(win);
-      applyWindowedBounds(win, targetDisplay);
+      if (process.platform !== 'darwin') applyWindowedBounds(win, targetDisplay);
       windowFullscreenDisplayId = null;
       scheduleWallpaperEngineHostBoundsRestart(win, 'leave-full-screen');
     }, 50);
@@ -5872,7 +5904,7 @@ async function createWindowOnce() {
     htmlFullscreenActive = false;
     setMainWindowFullscreenResizeGuard(win, false);
     setTimeout(() => {
-      applyWindowedBounds(win);
+      if (process.platform !== 'darwin') applyWindowedBounds(win);
       scheduleWallpaperEngineHostBoundsRestart(win, 'leave-html-full-screen');
     }, 50);
   });
@@ -5939,6 +5971,7 @@ if (!gotSingleInstanceLock) {
       Menu.setApplicationMenu(Menu.buildFromTemplate([
         { role: 'appMenu' },
         { role: 'editMenu' },
+        { label: '显示', submenu: [{ label: '切换全屏', accelerator: 'Control+Command+F', click: () => toggleFullscreen(mainWindow) }] },
         { role: 'windowMenu' },
       ]));
       if (app.dock) app.dock.setIcon(APP_ICON_ICO);
