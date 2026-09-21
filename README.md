@@ -1,11 +1,3 @@
-<p align="center">
-  <a href="https://github.com/XxHuberrr/Mineradio/releases/tag/v2.2.0"><img src="https://img.shields.io/badge/version-2.2.0-2563eb?style=flat-square" alt="Version 2.2.0"></a>
-  <img src="https://img.shields.io/badge/Windows-正式版-0078D4?style=flat-square" alt="Windows 正式版">
-  <a href="https://github.com/Azure12355/Mineradio/releases/tag/v2.2.0-macos.1"><img src="https://img.shields.io/badge/macOS-Apple%20Silicon%20Beta-555555?style=flat-square" alt="macOS Apple Silicon 测试版"></a>
-  <img src="https://img.shields.io/badge/built%20with-Electron-47848F?style=flat-square" alt="Built with Electron">
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-16a34a?style=flat-square" alt="GPL-3.0 License"></a>
-</p>
-
 <h1 align="center">Mineradio</h1>
 
 <p align="center">沉浸式音乐播放器 · 歌词舞台 · 粒子视觉 · 3D 歌单架</p>
@@ -15,6 +7,14 @@
   <a href="#macos-install">macOS 下载与安装</a> ·
   <a href="#开发运行">开发运行</a> ·
   <a href="#作者支持">支持原作者</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/XxHuberrr/Mineradio/releases/tag/v2.2.0"><img src="https://img.shields.io/badge/version-2.2.0-2563eb?style=flat-square" alt="Version 2.2.0"></a>
+  <img src="https://img.shields.io/badge/Windows-正式版-0078D4?style=flat-square" alt="Windows 正式版">
+  <a href="https://github.com/Azure12355/Mineradio/releases/tag/v2.2.0-macos.1"><img src="https://img.shields.io/badge/macOS-Apple%20Silicon%20Beta-555555?style=flat-square" alt="macOS Apple Silicon 测试版"></a>
+  <img src="https://img.shields.io/badge/built%20with-Electron-47848F?style=flat-square" alt="Built with Electron">
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-16a34a?style=flat-square" alt="GPL-3.0 License"></a>
 </p>
 
 ![Mineradio 暗场启动页](./docs/assets/readme/cinema-beat-smoke.png)
